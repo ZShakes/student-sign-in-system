@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classroom Sign-In</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1B3A6B;--navy-light:#254d8f;--bg:#F0F4FF;
+  --green:#22C55E;--green-bg:#F0FDF4;
+  --red:#EF4444;--red-bg:#FEF2F2;
+  --slate:#64748B;--slate-light:#94A3B8;--border:#E2E8F0;--text:#0F172A;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+
+/* HEADER */
+header{background:var(--navy);color:#fff;padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.header-left{display:flex;align-items:center;gap:14px}
+.header-icon{width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.class-name-wrap{display:flex;flex-direction:column}
+.class-label{font-size:11px;color:rgba(255,255,255,.55);font-weight:500;letter-spacing:.05em}
+#classNameDisplay{font-size:16px;font-weight:700;color:#fff;cursor:pointer;background:none;border:none;font-family:inherit;text-align:left}
+#classNameDisplay:hover{text-decoration:underline}
+.header-right{display:flex;align-items:center;gap:20px}
+#liveClock{font-size:22px;font-weight:300;color:rgba(255,255,255,.9);font-variant-numeric:tabular-nums}
+.present-badge{background:rgba(34,197,94,.2);border:1px solid rgba(34,197,94,.4);color:#86EFAC;border-radius:20px;padding:4px 12px;font-size:13px;font-weight:600}
+
+/* MAIN GRID */
+main{flex:1;display:grid;grid-template-columns:1fr 380px;overflow:hidden;height:calc(100vh - 64px)}
+
+/* SCANNER PANEL */
+.scanner-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;gap:24px;position:relative;overflow:hidden}
+.scan-status-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .25s ease;z-index:20}
+.scan-status-overlay.show{opacity:1}
+.scan-status-overlay.in{background:rgba(240,253,244,.96)}
+.scan-status-overlay.out{background:rgba(254,242,242,.96)}
+.overlay-icon{font-size:72px;margin-bottom:12px}
+.overlay-name{font-size:36px;font-weight:800}
+.overlay-action{font-size:20px;font-weight:500;margin-top:6px}
+.overlay-time{font-size:14px;color:var(--slate);margin-top:8px}
+.overlay-register-btn{margin-top:20px;padding:12px 28px;border-radius:12px;background:var(--navy);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;pointer-events:all;transition:background .15s;box-shadow:0 4px 16px rgba(27,58,107,.25);display:none}
+.overlay-register-btn:hover{background:var(--navy-light)}
+.scanner-box{background:#fff;border-radius:20px;padding:24px;box-shadow:0 4px 24px rgba(27,58,107,.10);width:100%;max-width:480px}
+.scanner-title{font-size:13px;font-weight:600;color:var(--slate);text-align:center;margin-bottom:16px;letter-spacing:.04em}
+#video-container{width:100%;aspect-ratio:4/3;background:#0F172A;border-radius:12px;overflow:hidden;position:relative}
+#videoEl{width:100%;height:100%;object-fit:cover;display:block}
+.scan-frame{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.scan-frame svg{width:180px;height:180px}
+.scan-line{position:absolute;left:50%;transform:translateX(-50%);width:160px;height:2px;background:linear-gradient(90deg,transparent,#22C55E,transparent);border-radius:2px;animation:scanMove 2s ease-in-out infinite;top:calc(50% - 80px)}
+@keyframes scanMove{0%,100%{top:calc(50% - 80px);opacity:.8}50%{top:calc(50% + 78px);opacity:1}}
+.scanner-hint{text-align:center;margin-top:14px;font-size:13px;color:var(--slate);line-height:1.5}
+.camera-error{display:none;text-align:center;padding:32px 16px;color:var(--slate);font-size:14px;line-height:1.6}
+.camera-error .error-icon{font-size:40px;margin-bottom:12px}
+.manual-entry{width:100%;max-width:480px;background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(27,58,107,.07)}
+.manual-entry label{font-size:12px;font-weight:600;color:var(--slate);display:block;margin-bottom:8px}
+.manual-row{display:flex;gap:8px}
+.manual-row input{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.manual-row input:focus{border-color:var(--navy)}
+.manual-row button{background:var(--navy);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;font-family:inherit}
+.manual-row button:hover{background:var(--navy-light)}
+
+/* LOG PANEL */
+.log-panel{background:#fff;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.log-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.log-header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.log-header h2{font-size:16px;font-weight:700}
+.log-actions{display:flex;gap:8px}
+.btn-sm{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);background:#fff;cursor:pointer;color:var(--slate);transition:all .15s;font-family:inherit}
+.btn-sm:hover{border-color:var(--navy);color:var(--navy)}
+.btn-sm.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-sm.primary:hover{background:var(--navy-light)}
+.btn-sm.danger{border-color:#FECACA;color:var(--red);background:#FEF2F2}
+.btn-sm.danger:hover{border-color:var(--red);background:#FEE2E2}
+.stats-row{display:flex;gap:8px}
+.stat-pill{flex:1;border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.stat-pill.in{background:var(--green-bg)}
+.stat-pill.out{background:var(--red-bg)}
+.stat-pill.total{background:var(--bg)}
+.stat-num{font-size:22px;font-weight:800;line-height:1}
+.stat-pill.in .stat-num{color:#16A34A}
+.stat-pill.out .stat-num{color:var(--red)}
+.stat-pill.total .stat-num{color:var(--navy)}
+.stat-lbl{font-size:11px;font-weight:500;color:var(--slate)}
+.log-list{flex:1;overflow-y:auto;padding:12px 16px}
+.log-empty{text-align:center;padding:48px 24px;color:var(--slate-light);font-size:14px;line-height:1.7}
+.log-empty-icon{font-size:36px;margin-bottom:12px}
+.log-entry{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;margin-bottom:6px;transition:background .1s;animation:slideIn .3s ease}
+@keyframes slideIn{from{transform:translateY(-8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.log-entry:hover{background:var(--bg)}
+.entry-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.entry-dot.in{background:var(--green)}
+.entry-info{flex:1;min-width:0}
+.entry-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry-id{font-size:11px;color:var(--slate-light)}
+.entry-right{text-align:right;flex-shrink:0}
+.entry-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block}
+.entry-badge.in{background:var(--green-bg);color:#15803D}
+.entry-time{font-size:11px;color:var(--slate-light);margin-top:3px}
+
+/* TABS */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{flex:1;padding:14px 16px;font-size:13px;font-weight:600;color:var(--slate);cursor:pointer;border-bottom:2px solid transparent;text-align:center;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+.tab.active{color:var(--navy);border-bottom-color:var(--navy)}
+.tab:hover:not(.active){color:var(--text);background:var(--bg)}
+.panel-section{display:none;flex:1;flex-direction:column;overflow:hidden}
+.panel-section.active{display:flex}
+.qr-gen-panel{padding:20px;overflow-y:auto;flex:1}
+.qr-gen-panel h3{font-size:15px;font-weight:700;margin-bottom:4px}
+.qr-gen-panel .hint{font-size:13px;color:var(--slate);margin-bottom:16px}
+.student-list-gen{display:flex;flex-direction:column;gap:10px}
+.student-qr-card{border:1.5px solid var(--border);border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px;background:#fff}
+.qr-thumb{width:64px;height:64px;flex-shrink:0}
+.qr-thumb canvas,.qr-thumb img{width:64px!important;height:64px!important}
+.student-qr-info{flex:1;min-width:0}
+.student-qr-info .sname{font-size:14px;font-weight:700}
+.student-qr-info .sid{font-size:12px;color:var(--slate-light)}
+.card-actions{display:flex;gap:6px;flex-shrink:0}
+.btn-edit{font-size:12px;font-weight:600;padding:7px 12px;border-radius:8px;border:1.5px solid var(--border);background:#fff;cursor:pointer;color:var(--slate);transition:all .15s;font-family:inherit}
+.btn-edit:hover{border-color:var(--navy);color:var(--navy);background:var(--bg)}
+.btn-delete{font-size:12px;font-weight:600;padding:7px 10px;border-radius:8px;border:1.5px solid #FECACA;background:#FEF2F2;cursor:pointer;color:var(--red);transition:all .15s;font-family:inherit}
+.btn-delete:hover{border-color:var(--red);background:#FEE2E2}
+.add-student-section{margin-top:20px;border-top:1px solid var(--border);padding-top:20px}
+.add-student-section h4{font-size:13px;font-weight:700;margin-bottom:12px}
+.add-student-row{display:flex;gap:8px;flex-wrap:wrap}
+.add-student-row input{flex:1;min-width:120px;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+.add-student-row input:focus{border-color:var(--navy)}
+.add-student-row .btn-add{background:var(--navy);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.add-student-row .btn-add:hover{background:var(--navy-light)}
+
+/* MODALS */
+.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-backdrop.open{opacity:1;pointer-events:all}
+.modal{background:#fff;border-radius:20px;width:90%;max-width:480px;padding:32px;box-shadow:0 20px 60px rgba(15,23,42,.25);transform:translateY(12px);transition:transform .2s}
+.modal-backdrop.open .modal{transform:translateY(0)}
+.modal h3{font-size:20px;font-weight:700;margin-bottom:6px}
+.modal p{font-size:14px;color:var(--slate);margin-bottom:20px}
+.modal-field{margin-bottom:14px}
+.modal-field label{font-size:12px;font-weight:600;color:var(--slate);display:block;margin-bottom:6px}
+.modal-field input{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.modal-field input:focus{border-color:var(--navy)}
+.modal-field input[readonly]{background:var(--bg);color:var(--slate)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+.btn-cancel{padding:10px 20px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:14px;font-weight:600;color:var(--slate);cursor:pointer;font-family:inherit}
+.btn-confirm{padding:10px 20px;border-radius:10px;border:none;background:var(--navy);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s}
+.btn-confirm:hover{background:var(--navy-light)}
+
+.log-list::-webkit-scrollbar{width:4px}
+.log-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-icon">🏫</div>
+    <div class="class-name-wrap">
+      <span class="class-label">CLASSROOM</span>
+      <button id="classNameDisplay" title="Click to rename">Biology 101</button>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="liveClock">--:--:--</div>
+  </div>
+</header>
+
+<main>
+  <!-- Scanner -->
+  <div class="scanner-panel">
+    <div class="scan-status-overlay" id="scanOverlay">
+      <div class="overlay-icon" id="overlayIcon"></div>
+      <div class="overlay-name" id="overlayName"></div>
+      <div class="overlay-action" id="overlayAction"></div>
+      <div class="overlay-time" id="overlayTime"></div>
+      <button class="overlay-register-btn" id="overlayRegisterBtn">+ Register This Student</button>
+    </div>
+
+    <div class="scanner-box">
+      <div class="scanner-title">POINT STUDENT QR CODE AT CAMERA</div>
+      <div id="video-container">
+        <video id="videoEl" autoplay muted playsinline></video>
+        <div class="scan-frame">
+          <svg viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="40" height="40" rx="4" stroke="white" stroke-width="3" fill="none"/>
+            <rect x="138" y="2" width="40" height="40" rx="4" stroke="white" stroke-width="3" fill="none"/>
+            <rect x="2" y="138" width="40" height="40" rx="4" stroke="white" stroke-width="3" fill="none"/>
+            <rect x="138" y="138" width="40" height="40" rx="4" stroke="white" stroke-width="3" fill="none"/>
+          </svg>
+        </div>
+        <div class="scan-line"></div>
+        <div class="camera-error" id="cameraError">
+          <div class="error-icon">📷</div>
+          Camera not available or permission denied.<br>Use manual entry below.
+        </div>
+      </div>
+      <div class="scanner-hint">Camera scans automatically — no button needed</div>
+    </div>
+
+    <div class="manual-entry">
+      <label>Manual Entry — type student ID or name</label>
+      <div class="manual-row">
+        <input type="text" id="manualInput" placeholder="e.g. STU-001 or Jane Smith" />
+        <button id="manualBtn">Sign In/Out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="log-panel">
+    <div class="tab-bar">
+      <button class="tab active" id="tabLogBtn">Activity Log</button>
+      <button class="tab" id="tabQrBtn">Student QR Codes</button>
+    </div>
+
+    <div class="panel-section active" id="tab-log">
+      <div class="log-header">
+        <div class="log-header-top">
+          <h2>Currently Signed In</h2>
+          <div class="log-actions">
+            <button class="btn-sm" id="exportBtn">Export CSV</button>
+            <button class="btn-sm danger" id="resetDayBtn">↺ Reset Day</button>
+            <button class="btn-sm primary" id="classSettingsBtn">⚙ Class</button>
+          </div>
+        </div>
+        <div class="stats-row">
+          <div class="stat-pill in"><span class="stat-num" id="statIn">0</span><span class="stat-lbl">Signed In</span></div>
+          <div class="stat-pill out"><span class="stat-num" id="statOut">0</span><span class="stat-lbl">Signed Out</span></div>
+          <div class="stat-pill total"><span class="stat-num" id="statTotal">0</span><span class="stat-lbl">Total Sign-ins</span></div>
+        </div>
+      </div>
+      <div class="log-list" id="logList">
+        <div class="log-empty"><div class="log-empty-icon">📋</div>Nobody signed in yet.<br>Scan a QR or use manual entry.</div>
+      </div>
+    </div>
+
+    <div class="panel-section" id="tab-qr">
+      <div class="qr-gen-panel">
+        <h3>Student QR Codes</h3>
+        <p class="hint">Each student gets a unique QR code. Scanning toggles them in or out.</p>
+        <div class="student-list-gen" id="studentQRList"></div>
+        <div class="add-student-section">
+          <h4>Add Student</h4>
+          <div class="add-student-row">
+            <input type="text" id="newStudentName" placeholder="Full name" />
+            <input type="text" id="newStudentId" placeholder="ID (optional)" style="max-width:120px" />
+            <button class="btn-add" id="addStudentBtn">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Register Unknown Student Modal -->
+<div class="modal-backdrop" id="registerStudentModal">
+  <div class="modal">
+    <h3>Register New Student</h3>
+    <p>An unrecognised QR was scanned. Enter this student's name to register them and sign them in.</p>
+    <div class="modal-field">
+      <label>Student ID <span style="color:var(--slate-light);font-weight:400">(from QR code)</span></label>
+      <input type="text" id="registerStudentId" readonly />
+    </div>
+    <div class="modal-field">
+      <label>Full Name</label>
+      <input type="text" id="registerStudentName" placeholder="e.g. Jane Smith" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="registerCancelBtn">Cancel</button>
+      <button class="btn-confirm" id="registerConfirmBtn">Register &amp; Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Student Modal -->
+<div class="modal-backdrop" id="editStudentModal">
+  <div class="modal">
+    <h3>Edit Student</h3>
+    <p>Update the student's name or ID. Their QR code will regenerate automatically.</p>
+    <input type="hidden" id="editStudentOriginalId" />
+    <div class="modal-field">
+      <label>Full Name</label>
+      <input type="text" id="editStudentName" placeholder="e.g. Jane Smith" />
+    </div>
+    <div class="modal-field">
+      <label>Student ID</label>
+      <input type="text" id="editStudentId" placeholder="e.g. STU-001" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="editCancelBtn">Cancel</button>
+      <button class="btn-confirm" id="editConfirmBtn">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Class Settings Modal -->
+<div class="modal-backdrop" id="classModal">
+  <div class="modal">
+    <h3>Class Settings</h3>
+    <p>Update the class name shown in the header.</p>
+    <div class="modal-field">
+      <label>Class Name</label>
+      <input type="text" id="classNameInput" placeholder="e.g. Biology 101" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="classCancelBtn">Cancel</button>
+      <button class="btn-confirm" id="classConfirmBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script>
+// ── State ──
+let students = JSON.parse(localStorage.getItem('classroom_students') || '[]');
+let scanLog = JSON.parse(localStorage.getItem('classroom_log') || '[]');
+let studentStatus = JSON.parse(localStorage.getItem('classroom_status') || '{}');
+let className = localStorage.getItem('classroom_name') || 'Biology 101';
+let scanCooldown = false;
+let pendingUnknownScan = null;
+
+if (students.length === 0) {
+  students = [
+    { id: 'STU-001', name: 'Emma Johnson' },
+    { id: 'STU-002', name: 'Liam Patel' },
+    { id: 'STU-003', name: 'Sofia Garcia' },
+    { id: 'STU-004', name: 'Noah Williams' },
+    { id: 'STU-005', name: 'Ava Chen' },
+  ];
+  save('students');
+}
+
+function save(key) {
+  if (key === 'students') localStorage.setItem('classroom_students', JSON.stringify(students));
+  if (key === 'log')      localStorage.setItem('classroom_log', JSON.stringify(scanLog));
+  if (key === 'status')   localStorage.setItem('classroom_status', JSON.stringify(studentStatus));
+}
+
+// ── Clock ──
+function updateClock() {
+  document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('en-US', { hour12: true });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Class name ──
+document.getElementById('classNameDisplay').textContent = className;
+document.getElementById('classNameDisplay').addEventListener('click', function() {
+  document.getElementById('classNameInput').value = className;
+  document.getElementById('classModal').classList.add('open');
+});
+document.getElementById('classConfirmBtn').addEventListener('click', function() {
+  const v = document.getElementById('classNameInput').value.trim();
+  if (v) {
+    className = v;
+    localStorage.setItem('classroom_name', v);
+    document.getElementById('classNameDisplay').textContent = v;
+  }
+  closeModal('classModal');
+});
+document.getElementById('classCancelBtn').addEventListener('click', function() { closeModal('classModal'); });
+document.getElementById('classSettingsBtn').addEventListener('click', function() {
+  document.getElementById('classNameInput').value = className;
+  document.getElementById('classModal').classList.add('open');
+});
+
+// ── Modals ──
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-backdrop').forEach(function(m) {
+  m.addEventListener('click', function(e) { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ── Tabs ──
+document.getElementById('tabLogBtn').addEventListener('click', function() {
+  document.querySelectorAll('.panel-section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('tab-log').classList.add('active');
+  this.classList.add('active');
+});
+document.getElementById('tabQrBtn').addEventListener('click', function() {
+  document.querySelectorAll('.panel-section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('tab-qr').classList.add('active');
+  this.classList.add('active');
+  renderStudentQRs();
+});
+
+// ── Find student ──
+function findStudent(raw) {
+  raw = raw.trim();
+  var s = students.find(function(s) { return s.id.toLowerCase() === raw.toLowerCase(); });
+  if (s) return s;
+  s = students.find(function(s) { return s.name.toLowerCase() === raw.toLowerCase(); });
+  if (s) return s;
+  var parts = raw.split('|');
+  if (parts.length === 2) {
+    s = students.find(function(s) { return s.id === parts[1].trim() || s.name.toLowerCase() === parts[0].trim().toLowerCase(); });
+    if (s) return s;
+  }
+  s = students.find(function(s) { return s.name.toLowerCase().includes(raw.toLowerCase()) || s.id.toLowerCase().includes(raw.toLowerCase()); });
+  return s || null;
+}
+
+// ── Process scan ──
+function processScan(raw) {
+  if (scanCooldown) return;
+  var student = findStudent(raw);
+  if (!student) { showOverlayUnknown(raw); return; }
+  var newStatus = (studentStatus[student.id] || 'out') === 'in' ? 'out' : 'in';
+  studentStatus[student.id] = newStatus;
+  save('status');
+  scanLog.unshift({ studentId: student.id, name: student.name, action: newStatus, time: new Date().toISOString() });
+  save('log');
+  renderLog();
+  updateStats();
+  showOverlayKnown(student, newStatus);
+}
+
+// ── Overlay: known student ──
+function showOverlayKnown(student, action) {
+  var overlay = document.getElementById('scanOverlay');
+  document.getElementById('overlayRegisterBtn').style.display = 'none';
+  document.getElementById('overlayIcon').textContent = action === 'in' ? '✅' : '🚪';
+  var nameEl = document.getElementById('overlayName');
+  nameEl.textContent = student.name;
+  nameEl.style.color = action === 'in' ? '#15803D' : '#B91C1C';
+  var actionEl = document.getElementById('overlayAction');
+  actionEl.textContent = action === 'in' ? 'Signed In' : 'Signed Out';
+  actionEl.style.color = action === 'in' ? '#16A34A' : '#EF4444';
+  document.getElementById('overlayTime').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  overlay.className = 'scan-status-overlay show ' + action;
+  scanCooldown = true;
+  setTimeout(function() { overlay.classList.remove('show'); scanCooldown = false; }, 2500);
+}
+
+// ── Overlay: unknown student ──
+function showOverlayUnknown(raw) {
+  pendingUnknownScan = raw;
+  var overlay = document.getElementById('scanOverlay');
+  document.getElementById('overlayIcon').textContent = '❓';
+  var nameEl = document.getElementById('overlayName');
+  nameEl.textContent = raw;
+  nameEl.style.color = '#EF4444';
+  var actionEl = document.getElementById('overlayAction');
+  actionEl.textContent = 'Unregistered student';
+  actionEl.style.color = '#EF4444';
+  document.getElementById('overlayTime').textContent = 'Tap below to register this student';
+  document.getElementById('overlayRegisterBtn').style.display = 'inline-block';
+  overlay.className = 'scan-status-overlay show out';
+  scanCooldown = true;
+  function dismissHandler(e) {
+    if (e.target === overlay) {
+      overlay.classList.remove('show');
+      document.getElementById('overlayRegisterBtn').style.display = 'none';
+      scanCooldown = false;
+      pendingUnknownScan = null;
+      overlay.removeEventListener('click', dismissHandler);
+    }
+  }
+  overlay.addEventListener('click', dismissHandler);
+}
+
+document.getElementById('overlayRegisterBtn').addEventListener('click', function() {
+  if (!pendingUnknownScan) return;
+  var parts = pendingUnknownScan.split('|');
+  var scannedId = parts.length === 2 ? parts[1].trim() : pendingUnknownScan.trim();
+  document.getElementById('registerStudentId').value = scannedId;
+  document.getElementById('registerStudentName').value = '';
+  document.getElementById('registerStudentModal').classList.add('open');
+  setTimeout(function() { document.getElementById('registerStudentName').focus(); }, 100);
+});
+
+document.getElementById('registerCancelBtn').addEventListener('click', function() { closeModal('registerStudentModal'); });
+document.getElementById('registerConfirmBtn').addEventListener('click', function() {
+  var id = document.getElementById('registerStudentId').value.trim();
+  var name = document.getElementById('registerStudentName').value.trim();
+  if (!name) { alert('Please enter the student\'s name.'); return; }
+  if (students.find(function(s) { return s.id === id; })) { alert('A student with this ID already exists.'); return; }
+  students.push({ id: id, name: name });
+  save('students');
+  studentStatus[id] = 'in';
+  save('status');
+  scanLog.unshift({ studentId: id, name: name, action: 'in', time: new Date().toISOString() });
+  save('log');
+  closeModal('registerStudentModal');
+  var overlay = document.getElementById('scanOverlay');
+  overlay.classList.remove('show');
+  document.getElementById('overlayRegisterBtn').style.display = 'none';
+  pendingUnknownScan = null;
+  scanCooldown = false;
+  renderLog();
+  updateStats();
+  showOverlayKnown({ id: id, name: name }, 'in');
+});
+
+// ── Log ──
+function renderLog() {
+  var list = document.getElementById('logList');
+  var signedIn = students.filter(function(s) { return studentStatus[s.id] === 'in'; });
+  if (signedIn.length === 0) {
+    list.innerHTML = '<div class="log-empty"><div class="log-empty-icon">📋</div>Nobody signed in yet.<br>Scan a QR or use manual entry.</div>';
+    return;
+  }
+  signedIn.sort(function(a, b) {
+    var ta = scanLog.find(function(e) { return e.studentId === a.id && e.action === 'in'; });
+    var tb = scanLog.find(function(e) { return e.studentId === b.id && e.action === 'in'; });
+    return (tb ? new Date(tb.time) : 0) - (ta ? new Date(ta.time) : 0);
+  });
+  list.innerHTML = signedIn.map(function(s) {
+    var entry = scanLog.find(function(e) { return e.studentId === s.id && e.action === 'in'; });
+    var timeStr = entry ? new Date(entry.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+    return '<div class="log-entry">' +
+      '<div class="entry-dot in"></div>' +
+      '<div class="entry-info"><div class="entry-name">' + s.name + '</div><div class="entry-id">' + s.id + '</div></div>' +
+      '<div class="entry-right"><span class="entry-badge in">IN</span><div class="entry-time">since ' + timeStr + '</div></div>' +
+      '</div>';
+  }).join('');
+}
+
+// ── Stats ──
+function updateStats() {
+  var present = Object.values(studentStatus).filter(function(v) { return v === 'in'; }).length;
+  var out = Object.values(studentStatus).filter(function(v) { return v === 'out'; }).length;
+  var total = scanLog.filter(function(e) { return e.action === 'in'; }).length;
+  document.getElementById('statIn').textContent = present;
+  document.getElementById('statOut').textContent = out;
+  document.getElementById('statTotal').textContent = total;
+}
+
+// ── Reset Day ──
+document.getElementById('resetDayBtn').addEventListener('click', function() {
+  if (!confirm('Reset the day?\n\nThis will sign everyone out, clear the activity log, and reset the total sign-in count. The student list will be kept.')) return;
+  studentStatus = {};
+  scanLog = [];
+  save('status');
+  save('log');
+  renderLog();
+  updateStats();
+});
+
+// ── Manual entry ──
+document.getElementById('manualBtn').addEventListener('click', function() {
+  var val = document.getElementById('manualInput').value.trim();
+  if (!val) return;
+  processScan(val);
+  document.getElementById('manualInput').value = '';
+});
+document.getElementById('manualInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('manualBtn').click();
+});
+
+// ── Camera ──
+var video = document.getElementById('videoEl');
+var canvas = document.createElement('canvas');
+var ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+function startCamera() {
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function(stream) {
+    video.srcObject = stream;
+    video.addEventListener('loadedmetadata', scanLoop);
+  }).catch(function() {
+    document.getElementById('cameraError').style.display = 'block';
+    document.querySelector('.scan-line').style.display = 'none';
+  });
+}
+
+function scanLoop() {
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) processScan(code.data);
+  }
+  requestAnimationFrame(scanLoop);
+}
+startCamera();
+
+// ── Edit student ──
+document.getElementById('editCancelBtn').addEventListener('click', function() { closeModal('editStudentModal'); });
+document.getElementById('editConfirmBtn').addEventListener('click', function() {
+  var originalId = document.getElementById('editStudentOriginalId').value;
+  var newName = document.getElementById('editStudentName').value.trim();
+  var newId = document.getElementById('editStudentId').value.trim();
+  if (!newName) { alert('Name cannot be empty.'); return; }
+  if (!newId) { alert('ID cannot be empty.'); return; }
+  if (newId !== originalId && students.find(function(s) { return s.id === newId; })) {
+    alert('That ID is already used by another student.'); return;
+  }
+  var idx = students.findIndex(function(s) { return s.id === originalId; });
+  if (idx === -1) return;
+  scanLog = scanLog.map(function(e) {
+    return e.studentId === originalId ? Object.assign({}, e, { studentId: newId, name: newName }) : e;
+  });
+  save('log');
+  if (newId !== originalId && studentStatus[originalId] !== undefined) {
+    studentStatus[newId] = studentStatus[originalId];
+    delete studentStatus[originalId];
+    save('status');
+  }
+  students[idx] = { id: newId, name: newName };
+  save('students');
+  closeModal('editStudentModal');
+  renderStudentQRs();
+  renderLog();
+  updateStats();
+});
+
+// ── Delete student ──
+function deleteStudent(studentId) {
+  var s = students.find(function(s) { return s.id === studentId; });
+  if (!s) return;
+  if (!confirm('Remove ' + s.name + ' (' + s.id + ') from the class?\n\nTheir attendance log will be kept.')) return;
+  students = students.filter(function(s) { return s.id !== studentId; });
+  delete studentStatus[studentId];
+  save('students');
+  save('status');
+  renderStudentQRs();
+  renderLog();
+  updateStats();
+}
+
+// ── Add student ──
+document.getElementById('addStudentBtn').addEventListener('click', function() {
+  var name = document.getElementById('newStudentName').value.trim();
+  var id = document.getElementById('newStudentId').value.trim() || ('STU-' + String(students.length + 1).padStart(3, '0'));
+  if (!name) { alert('Please enter a name.'); return; }
+  if (students.find(function(s) { return s.id === id; })) { alert('ID already exists.'); return; }
+  students.push({ id: id, name: name });
+  save('students');
+  document.getElementById('newStudentName').value = '';
+  document.getElementById('newStudentId').value = '';
+  renderStudentQRs();
+});
+
+// ── Render QR cards ──
+function renderStudentQRs() {
+  var container = document.getElementById('studentQRList');
+  container.innerHTML = '';
+  students.forEach(function(s) {
+    var card = document.createElement('div');
+    card.className = 'student-qr-card';
+
+    var qrDiv = document.createElement('div');
+    qrDiv.className = 'qr-thumb';
+    card.appendChild(qrDiv);
+
+    var info = document.createElement('div');
+    info.className = 'student-qr-info';
+    info.innerHTML = '<div class="sname">' + s.name + '</div><div class="sid">' + s.id + '</div>';
+    card.appendChild(info);
+
+    var actions = document.createElement('div');
+    actions.className = 'card-actions';
+
+    var editBtn = document.createElement('button');
+    editBtn.className = 'btn-edit';
+    editBtn.textContent = '✏️ Edit';
+    (function(sid) {
+      editBtn.addEventListener('click', function() {
+        var student = students.find(function(s) { return s.id === sid; });
+        if (!student) return;
+        document.getElementById('editStudentOriginalId').value = student.id;
+        document.getElementById('editStudentName').value = student.name;
+        document.getElementById('editStudentId').value = student.id;
+        document.getElementById('editStudentModal').classList.add('open');
+        setTimeout(function() { document.getElementById('editStudentName').focus(); }, 100);
+      });
+    })(s.id);
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'btn-delete';
+    delBtn.textContent = '🗑';
+    delBtn.title = 'Remove student';
+    (function(sid) {
+      delBtn.addEventListener('click', function() { deleteStudent(sid); });
+    })(s.id);
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    card.appendChild(actions);
+    container.appendChild(card);
+
+    new QRCode(qrDiv, {
+      text: s.name + '|' + s.id,
+      width: 64, height: 64,
+      colorDark: '#1B3A6B', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  });
+}
+
+// ── Export CSV ──
+document.getElementById('exportBtn').addEventListener('click', function() {
+  var header = 'Name,Student ID,Action,Date,Time\n';
+  var rows = scanLog.map(function(e) {
+    var d = new Date(e.time);
+    return '"' + e.name + '","' + e.studentId + '","' + e.action + '","' + d.toLocaleDateString() + '","' + d.toLocaleTimeString() + '"';
+  }).join('\n');
+  var totalSignIns = scanLog.filter(function(e) { return e.action === 'in'; }).length;
+  var summary = '\n\nTotal Sign-ins,' + totalSignIns;
+  var blob = new Blob([header + rows + summary], { type: 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  var now = new Date();
+  var dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).replace(/,/g, '').replace(/\s+/g, '_');
+  a.download = className.replace(/\s+/g, '_') + '_' + dateStr + '.csv';
+  a.click();
+});
+
+// ── Init ──
+renderLog();
+updateStats();
+</script>
+</body>
+</html>

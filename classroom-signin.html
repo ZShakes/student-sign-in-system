@@ -310,7 +310,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 380px;overflow:hidden;height:
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script>
 // ── State ──
 let students = JSON.parse(localStorage.getItem('classroom_students') || '[]');
@@ -558,7 +558,10 @@ var ctx = canvas.getContext('2d', { willReadFrequently: true });
 function startCamera() {
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function(stream) {
     video.srcObject = stream;
-    video.addEventListener('loadedmetadata', scanLoop);
+    video.addEventListener('loadedmetadata', function() {
+      video.play().catch(function() {});
+      scanLoop();
+    });
   }).catch(function() {
     document.getElementById('cameraError').style.display = 'block';
     document.querySelector('.scan-line').style.display = 'none';
@@ -566,6 +569,11 @@ function startCamera() {
 }
 
 function scanLoop() {
+  if (typeof jsQR !== 'function') {
+    requestAnimationFrame(scanLoop);
+    return;
+  }
+
   if (video.readyState === video.HAVE_ENOUGH_DATA) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;

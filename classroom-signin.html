@@ -93,6 +93,8 @@ main{flex:1;display:grid;grid-template-columns:1fr 380px;overflow:hidden;height:
 .entry-dot.in{background:var(--green)}
 .entry-info{flex:1;min-width:0}
 .entry-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry-name-button{display:block;width:100%;padding:0;border:0;background:none;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.entry-name-button:hover,.entry-name-button:focus-visible{text-decoration:underline;color:var(--navy)}
 .entry-id{font-size:11px;color:var(--slate-light)}
 .entry-right{text-align:right;flex-shrink:0}
 .entry-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block}
@@ -512,11 +514,27 @@ function renderLog() {
     var timeStr = entry ? new Date(entry.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
     return '<div class="log-entry">' +
       '<div class="entry-dot in"></div>' +
-      '<div class="entry-info"><div class="entry-name">' + s.name + '</div><div class="entry-id">' + s.id + '</div></div>' +
+      '<div class="entry-info"><button class="entry-name entry-name-button" type="button" data-student-id="' + s.id + '" title="Sign out ' + s.name + '">' + s.name + '</button><div class="entry-id">' + s.id + '</div></div>' +
       '<div class="entry-right"><span class="entry-badge in">IN</span><div class="entry-time">since ' + timeStr + '</div></div>' +
       '</div>';
   }).join('');
 }
+
+document.getElementById('logList').addEventListener('click', function(e) {
+  var button = e.target.closest('.entry-name-button');
+  if (!button) return;
+  var studentId = button.getAttribute('data-student-id');
+  if (studentStatus[studentId] !== 'in') return;
+  studentStatus[studentId] = 'out';
+  save('status');
+  var student = students.find(function(s) { return s.id === studentId; });
+  if (student) {
+    scanLog.unshift({ studentId: student.id, name: student.name, action: 'out', time: new Date().toISOString() });
+    save('log');
+  }
+  renderLog();
+  updateStats();
+});
 
 // ── Stats ──
 function updateStats() {
@@ -554,19 +572,60 @@ document.getElementById('manualInput').addEventListener('keydown', function(e) {
 var video = document.getElementById('videoEl');
 var canvas = document.createElement('canvas');
 var ctx = canvas.getContext('2d', { willReadFrequently: true });
+var scanStarted = false;
 
 function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showCameraError('Camera access requires a secure connection (HTTPS or localhost).');
+    return;
+  }
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function(stream) {
     video.srcObject = stream;
-    video.addEventListener('loadedmetadata', function() {
-      video.play().catch(function() {});
-      scanLoop();
-    });
-  }).catch(function() {
-    document.getElementById('cameraError').style.display = 'block';
-    document.querySelector('.scan-line').style.display = 'none';
+    startScanningWhenReady();
+  }).catch(function(error) {
+    var message = error.name === 'NotAllowedError' ? 'Camera permission was denied. Allow camera access or use manual entry.' : 'Camera not available. Check that a camera is connected or use manual entry.';
+    showCameraError(message);
   });
 }
+
+function showCameraError(message) {
+  var cameraError = document.getElementById('cameraError');
+  cameraError.innerHTML = '<div class="error-icon">📷</div>' + message;
+  cameraError.style.display = 'block';
+  document.querySelector('.scan-line').style.display = 'none';
+}
+
+function startScanningWhenReady() {
+  if (scanStarted) return;
+  if (video.readyState >= 1) {
+    video.play().then(function() {
+      if (!scanStarted) {
+        scanStarted = true;
+        scanLoop();
+      }
+    }).catch(function() {
+      showCameraError('Camera preview could not start. Use manual entry below.');
+    });
+    return;
+  }
+  video.addEventListener('loadedmetadata', startScanningWhenReady, { once: true });
+}
+
+function stopCamera(stream) {
+  if (stream) {
+    stream.getTracks().forEach(function(track) { track.stop(); });
+  }
+}
+
+function handleCameraVisibility() {
+  if (document.hidden) return;
+  if (!video.srcObject) startCamera();
+}
+
+document.addEventListener('visibilitychange', handleCameraVisibility);
+window.addEventListener('beforeunload', function() {
+  stopCamera(video.srcObject);
+});
 
 function scanLoop() {
   if (typeof jsQR !== 'function') {

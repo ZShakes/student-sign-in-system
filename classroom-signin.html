@@ -148,11 +148,42 @@ main{flex:1;display:grid;grid-template-columns:1fr 380px;overflow:hidden;height:
 .btn-confirm{padding:10px 20px;border-radius:10px;border:none;background:var(--navy);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s}
 .btn-confirm:hover{background:var(--navy-light)}
 
+/* ADMIN LOGIN */
+.admin-login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;z-index:200}
+.admin-login.hidden{display:none}
+.admin-login-card{background:#fff;border:1px solid var(--border);border-radius:20px;width:100%;max-width:400px;padding:32px;box-shadow:0 20px 60px rgba(27,58,107,.12)}
+.admin-login-icon{width:48px;height:48px;border-radius:12px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:23px;margin-bottom:18px}
+.admin-login h1{font-size:24px;margin-bottom:6px}
+.admin-login p{font-size:14px;color:var(--slate);line-height:1.5;margin-bottom:22px}
+.admin-login .modal-field{margin-bottom:14px}
+.admin-login .btn-confirm{width:100%;margin-top:4px}
+.admin-login-error{color:var(--red);font-size:12px;min-height:18px;margin-top:10px}
+.admin-signout{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:6px 10px;font:600 12px inherit;cursor:pointer}
+.admin-signout:hover{background:rgba(255,255,255,.12)}
+
 .log-list::-webkit-scrollbar{width:4px}
 .log-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 </style>
 </head>
 <body>
+
+<div class="admin-login" id="adminLogin">
+  <form class="admin-login-card" id="adminLoginForm">
+    <div class="admin-login-icon">🔐</div>
+    <h1>Admin Sign In</h1>
+    <p>Sign in to manage the classroom roster, attendance log, and settings.</p>
+    <div class="modal-field">
+      <label for="adminUsername">Username</label>
+      <input type="text" id="adminUsername" autocomplete="username" required />
+    </div>
+    <div class="modal-field">
+      <label for="adminPassword">Password</label>
+      <input type="password" id="adminPassword" autocomplete="current-password" required />
+    </div>
+    <button class="btn-confirm" type="submit">Sign In</button>
+    <div class="admin-login-error" id="adminLoginError" role="alert"></div>
+  </form>
+</div>
 
 <header>
   <div class="header-left">
@@ -164,6 +195,7 @@ main{flex:1;display:grid;grid-template-columns:1fr 380px;overflow:hidden;height:
   </div>
   <div class="header-right">
     <div id="liveClock">--:--:--</div>
+    <button class="admin-signout" id="adminSignoutBtn" type="button">Sign Out</button>
   </div>
 </header>
 
@@ -321,6 +353,43 @@ let studentStatus = JSON.parse(localStorage.getItem('classroom_status') || '{}')
 let className = localStorage.getItem('classroom_name') || 'Biology 101';
 let scanCooldown = false;
 let pendingUnknownScan = null;
+let adminAuthenticated = sessionStorage.getItem('classroom_admin_authenticated') === 'true';
+
+function setAdminAuthenticated(authenticated) {
+  adminAuthenticated = authenticated;
+  document.getElementById('adminLogin').classList.toggle('hidden', authenticated);
+  if (authenticated) {
+    sessionStorage.setItem('classroom_admin_authenticated', 'true');
+    document.getElementById('adminUsername').value = '';
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('adminLoginError').textContent = '';
+  } else {
+    sessionStorage.removeItem('classroom_admin_authenticated');
+  }
+}
+
+document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var username = document.getElementById('adminUsername').value.trim();
+  var password = document.getElementById('adminPassword').value;
+  if (username === 'admin' && password === 'admin123') {
+    setAdminAuthenticated(true);
+    startCamera();
+  } else {
+    document.getElementById('adminLoginError').textContent = 'Incorrect username or password.';
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('adminPassword').focus();
+  }
+});
+
+document.getElementById('adminSignoutBtn').addEventListener('click', function() {
+  stopCamera(video.srcObject);
+  video.srcObject = null;
+  setAdminAuthenticated(false);
+  document.getElementById('adminUsername').focus();
+});
+
+setAdminAuthenticated(adminAuthenticated);
 
 if (students.length === 0) {
   students = [
@@ -643,7 +712,7 @@ function scanLoop() {
   }
   requestAnimationFrame(scanLoop);
 }
-startCamera();
+if (adminAuthenticated) startCamera();
 
 // ── Edit student ──
 document.getElementById('editCancelBtn').addEventListener('click', function() { closeModal('editStudentModal'); });
